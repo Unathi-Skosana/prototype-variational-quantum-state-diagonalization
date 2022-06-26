@@ -1,0 +1,15 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+certifi = ">=2021.5.30"
+importlib-metadata = ">=4.8.1"
+qiskit-aer = ">=0.10.3"
+qiskit-terra = ">=0.19.2"
+
+[dev-packages]
+
+[requires]
+python_version = "3.9"
