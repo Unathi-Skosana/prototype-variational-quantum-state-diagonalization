@@ -14,6 +14,10 @@ from qiskit.circuit import Instruction
 from qiskit.result import Result
 from qiskit.opflow import OperatorBase, StateFn
 
+
+from vqsd.core.VariationalQuantumStateDiagonilzationConfig import (
+    VariationalQuantumStateDiagonilzationConfig,
+)
 from vqsd.utils.subroutines import (
     prepare_circuits_to_execute,
     eval_tests_with_result,
@@ -45,7 +49,7 @@ class VariationalQuantumStateDiagonilzation(VQE):
             Instruction,
             OperatorBase,
         ],
-        config,
+        config: VariationalQuantumStateDiagonilzationConfig,
     ) -> None:
 
         super().__init__(
@@ -59,7 +63,8 @@ class VariationalQuantumStateDiagonilzation(VQE):
         self._ansatz = ansatz
         self._config = config
         self._shots = config.shots
-        self._q = config.q
+        self._weight = config.weight
+        self._eps_max = config.eps_max
         self._initial_state = StateFn(initial_state)
         self._num_qubits = self._initial_state.num_qubits
         self._initial_state_circuit = self._initial_state.to_circuit_op().to_circuit()
@@ -107,7 +112,7 @@ class VariationalQuantumStateDiagonilzation(VQE):
                 "not match the number of bits in initial_state."
             )
 
-        if 0 <= self._q <= 1.0:
+        if 0 <= self._weight <= 1.0:
             raise ValueError("The hyper parameter q must be in the range [0,1]")
 
         # pylint: disable=fixme
@@ -307,15 +312,15 @@ class VariationalQuantumStateDiagonilzation(VQE):
                 pdip_eval, dip_eval = eval_tests_with_result(res, self._is_sv_sim)
                 local_obj_fun_eval = self._purity - pdip_eval
                 global_obj_fun_eval = self._purity - dip_eval
-                weight_obj_func_eval = (
-                    self._q * global_obj_fun_eval + (1 - self._q) * local_obj_fun_eval
+                weighted_obj_func_eval = (
+                    self._weight * global_obj_fun_eval + (1 - self._weight) * local_obj_fun_eval
                 )
 
                 local_obj_fun_eval_mean_each_parameter_set[idx] = local_obj_fun_eval
                 global_obj_fun_eval_mean_each_parameter_set[idx] = global_obj_fun_eval
                 weighted_obj_fun_eval_mean_each_parameter_set[
                     idx
-                ] = weight_obj_func_eval
+                ] = weighted_obj_func_eval
 
         return (
             local_obj_fun_eval_mean_each_parameter_set,

@@ -30,7 +30,7 @@ class VariationalQuantumStateDiagonilzationConfig:
                 parameters.
         maxiter (int): Maximum number of optimizer iterations to perform.
         optimizer_name (str): e.g. 'SPSA', 'ADAM', 'NELDER_MEAD', 'COBYLA', 'L_BFGS_B', 'SLSQP' ...
-        optimizer_tol' (float): Optimizer tolerance, e.g. 1e-6.
+        optimizer_tol (float): Optimizer tolerance, e.g. 1e-6.
         skip_any_optimizer_cal (bool): Setting passed to any optimizer with a 'skip_calibration'
                 argument.
         spsa_last_average (int): Number of times to average over final SPSA evaluations to
@@ -42,6 +42,10 @@ class VariationalQuantumStateDiagonilzationConfig:
         spsa_c1 (float): The initial parameter 'c'. The step size used to
                 approximate gradient in SPSA (only used for SPSA).
         max_evals_grouped (int): Maximum number of evaluations performed simultaneously.
+        weight (float): Free parameter to weight the contributions of C1 and C2
+                to the overall cost function for VQSD.
+        eps_max (float): Error threshold that determines how many of the
+                inferred eigenvalues are characterized to a desired accuracy
         rep_delay (float): Delay between programs in seconds.
         shots (int): The total number of shots for the simulation
                 (overwritten for the statevector backend).
@@ -64,6 +68,8 @@ class VariationalQuantumStateDiagonilzationConfig:
         maxiter=100,
         optimizer_name="SPSA",
         optimizer_tol=1e-6,
+        weight=0.5,
+        eps_max=0.1,
         skip_any_optimizer_cal=True,
         spsa_last_average=10,
         initial_spsa_iteration_idx=0,
@@ -93,6 +99,8 @@ class VariationalQuantumStateDiagonilzationConfig:
         self.spsa_c0 = spsa_c0
         self.spsa_c1 = spsa_c1
         self.max_evals_grouped = max_evals_grouped
+        self.weight = weight
+        self.eps_max = eps_max
 
         self.rep_delay = None
         dynamic_reprate_enabled = getattr(
