@@ -15,7 +15,7 @@ from qiskit.result import Result
 from qiskit.opflow import OperatorBase, StateFn
 
 
-from vqsd.core.VariationalQuantumStateDiagonilzationConfig import (
+from vqsd.core.variational_quantum_state_diagonalization_config import (
     VariationalQuantumStateDiagonilzationConfig,
 )
 from vqsd.utils.subroutines import (
@@ -23,6 +23,7 @@ from vqsd.utils.subroutines import (
     eval_tests_with_result,
     get_optimizer_instance,
 )
+from vqsd.utils.prepare_bitstring import prepare_bitstring
 from vqsd.utils.execution_subroutines import execute_with_retry
 
 from vqsd.utils.logger import Logger as logger
@@ -98,7 +99,6 @@ class VariationalQuantumStateDiagonilzation(VQE):
 
         # Paramters for get_energy_evaluation. Moved them here to match parent function signature
         self._shots_multiplier = 1
-        self._bootstrap_trials = 0
 
         statevector_sims = ["aer_simulator_statevector", "statevector_simulator"]
         if self._backend.name() in statevector_sims:
@@ -113,7 +113,7 @@ class VariationalQuantumStateDiagonilzation(VQE):
             )
 
         if 0 <= self._weight <= 1.0:
-            raise ValueError("The hyper parameter q must be in the range [0,1]")
+            raise ValueError("The hyper parameter weight must be in the range [0,1]")
 
         # pylint: disable=fixme
         # TODO: Validate whether there are measurements in state
@@ -125,10 +125,11 @@ class VariationalQuantumStateDiagonilzation(VQE):
         )
 
         self._stateprep_circuit.compose(
-            self._initial_state_circuit, [0, self._num_qubits]
+            self._initial_state_circuit, [0, self._num_qubits], inplace=True
         )
         self._stateprep_circuit.compose(
-            self._initial_state_circuit[self._num_qubits, 2 * self._num_qubits]
+            self._initial_state_circuit[self._num_qubits, 2 * self._num_qubits],
+            inplace=True,
         )
 
     @property
@@ -313,7 +314,8 @@ class VariationalQuantumStateDiagonilzation(VQE):
                 local_obj_fun_eval = self._purity - pdip_eval
                 global_obj_fun_eval = self._purity - dip_eval
                 weighted_obj_func_eval = (
-                    self._weight * global_obj_fun_eval + (1 - self._weight) * local_obj_fun_eval
+                    self._weight * global_obj_fun_eval
+                    + (1 - self._weight) * local_obj_fun_eval
                 )
 
                 local_obj_fun_eval_mean_each_parameter_set[idx] = local_obj_fun_eval
@@ -330,3 +332,65 @@ class VariationalQuantumStateDiagonilzation(VQE):
             weighted_obj_fun_eval_mean_each_parameter_set,
             weighted_obj_fun_eval_std_each_parameter_set,
         )
+
+    def _get_eigenvalues(self, optimal_parameters):
+        """
+        Computes the eigenvalue estimates from the optimized
+        parameters.
+        """
+
+        if self._is_sv_sim:
+            logger.log("State vector mode not supported yet.")
+
+        qb_list = list(np.arange(self._num_qubits))
+
+        param_bindings = dict(zip(optimal_parameters))
+        opt_u_circuit = self._ansatz.bind_parameters(param_bindings)
+
+        circuit = self._stateprep_circuit.copy()
+        circuit.compose(opt_u_circuit, qb_list, inplace=True)
+
+        state_fn = self._circuit_sampler.convert(StateFn(circuit)).eval()
+        counts_dict = (
+            state_fn.to_dict_fn().primitive
+        )  # SparseVectorStateFn -> DictStateFn -> dict
+
+        # filter counts dictionary for counts with desired precision
+        err_sq = np.sqrt(self._shots)
+        eigvals = dict(
+            filter(lambda item: err_sq / item[1] < self._eps_max, counts_dict.items())
+        )
+
+        return eigvals
+
+    def _get_eigenvectors(self, optimal_parameters, bitstrings):
+        """
+        Computes the eigenvector estimates from the optimized
+        parameters.
+        """
+        if self._is_sv_sim:
+            logger.log("State vector mode not supported yet.")
+
+        qb_list = list(np.arange(self._num_qubits))
+
+        param_bindings = dict(zip(optimal_parameters))
+        opt_u_circuit = self._ansatz.bind_parameters(param_bindings)
+
+        circuit = self._stateprep_circuit.copy()
+        circuit.compose(opt_u_circuit, qb_list, inplace=True)
+
+        circuits = list(
+            map(
+                lambda x: circuit.compose(prepare_bitstring(x), inplace=False),
+                bitstrings,
+            )
+        )
+
+        eigvecs = []
+        for circuit in circuits:
+            state_fn = self._circuit_sampler.convert(StateFn(circuit)).eval()
+            eigvecs.append(
+                state_fn.primitive.data
+            )  # VectorStateFn -> Statevector -> np.array
+
+        return eigvecs

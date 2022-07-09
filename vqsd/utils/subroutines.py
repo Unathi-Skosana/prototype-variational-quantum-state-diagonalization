@@ -43,8 +43,8 @@ def prepare_circuits_to_execute(
     pdip_circuit_name_prefix = "pdip_test" + "_" + str(stateprep_circuit.name) + "_"
 
     dip_circuit = QuantumCircuit(2 * num_qubits, name=dip_circuit_name_prefix)
-    dip_circuit.compose(u_circuit, qubits=first_copy_idx)
-    dip_circuit.compose(u_circuit, qubits=second_copy_idx)
+    dip_circuit.compose(u_circuit, qubits=first_copy_idx, inplace=True)
+    dip_circuit.compose(u_circuit, qubits=second_copy_idx, inplace=True)
 
     pdip_circuit = QuantumCircuit(2 * num_qubits, name=pdip_circuit_name_prefix)
 
@@ -65,7 +65,7 @@ def prepare_circuits_to_execute(
         circuit = QuantumCircuit(
             2 * num_qubits, name=pdip_circuit_name_prefix + str(qb_idx)
         )
-        circuit.compose(pdip_circuit)
+        circuit.compose(pdip_circuit, inplace=True)
         circuit.h(shifted_j_prime)
         if not statevector_mode:
             circuit.measure(
