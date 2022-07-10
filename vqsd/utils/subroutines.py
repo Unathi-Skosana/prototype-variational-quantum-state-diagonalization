@@ -2,7 +2,7 @@
 TODO
 """
 
-from typing import Union
+from typing import Union, Iterable
 
 import inspect
 import warnings
@@ -23,7 +23,7 @@ from vqsd.utils.logger import Logger as logger
 def prepare_circuits_to_execute(
     stateprep_circuit: QuantumCircuit,
     ansatz: QuantumCircuit,
-    params: dict,
+    params: Iterable[float],
     statevector_mode: bool = False,
 ):
     # pylint: disable=too-many-locals
@@ -39,38 +39,40 @@ def prepare_circuits_to_execute(
     first_copy_idx = np.arange(num_qubits, dtype=int).tolist()
     second_copy_idx = np.arange(num_qubits, 2 * num_qubits, dtype=int).tolist()
 
-    dip_circuit_name_prefix = "dip_test" + "_" + str(stateprep_circuit.name)
+    dip_circuit_name_prefix = "dip_test" + "_" + str(stateprep_circuit.name) + "_0"
     pdip_circuit_name_prefix = "pdip_test" + "_" + str(stateprep_circuit.name) + "_"
 
-    dip_circuit = QuantumCircuit(2 * num_qubits, name=dip_circuit_name_prefix)
+    dip_circuit = QuantumCircuit(
+        2 * num_qubits, num_qubits, name=dip_circuit_name_prefix
+    )
     dip_circuit.compose(u_circuit, qubits=first_copy_idx, inplace=True)
     dip_circuit.compose(u_circuit, qubits=second_copy_idx, inplace=True)
 
-    pdip_circuit = QuantumCircuit(2 * num_qubits, name=pdip_circuit_name_prefix)
-
     for qb_idx in first_copy_idx:
         dip_circuit.cx(qb_idx + num_qubits, qb_idx)
-        pdip_circuit.cx(qb_idx + num_qubits, qb_idx)
 
-    if not statevector_mode:
-        dip_circuit.measure(first_copy_idx, first_copy_idx)
+        if not statevector_mode:
+            dip_circuit.measure(qb_idx, qb_idx)
 
     circuits_to_execute += [dip_circuit]
 
+    pdip_circuit = dip_circuit.copy()
+
     for qb_idx in first_copy_idx:
         j = np.asarray([qb_idx], dtype=int)
-        j_prime = np.asarray(set(first_copy_idx) - set(j), dtype=int)
-        shifted_j_prime = list(num_qubits + j_prime)
+        j_prime = np.asarray(list(set(first_copy_idx) - set(j)), dtype=int)
+        shifted_j_prime = num_qubits + j_prime
 
         circuit = QuantumCircuit(
-            2 * num_qubits, name=pdip_circuit_name_prefix + str(qb_idx)
+            2 * num_qubits,
+            2 * num_qubits - 1,
+            name=pdip_circuit_name_prefix + str(qb_idx),
         )
         circuit.compose(pdip_circuit, inplace=True)
         circuit.h(shifted_j_prime)
+
         if not statevector_mode:
-            circuit.measure(
-                first_copy_idx + shifted_j_prime, first_copy_idx + shifted_j_prime
-            )
+            circuit.measure(shifted_j_prime, shifted_j_prime - 1)
         circuits_to_execute += [circuit]
 
     return circuits_to_execute
